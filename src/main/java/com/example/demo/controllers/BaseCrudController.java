@@ -1,0 +1,112 @@
+package com.example.demo.controllers;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import com.example.demo.entities.Enti;
+
+public abstract class BaseCrudController<T extends Enti, DTO> {
+
+    protected static final String FLASH_ERRORS = "errors";
+    protected static final String INDEX_ROUTE = "/index";
+    protected static final String CREATE_ROUTE = "/create";
+    protected static final String DETAILS_ROUTE = "/details/{id}";
+    protected static final String DETAILS_TEMPLATE = "/details";
+
+    private final String TEMPLATE_NAME;
+    protected final String REDIRECT_INDEX;
+    protected final String REDIRECT_CREATE;
+
+    public BaseCrudController(String templateName) {
+        this.TEMPLATE_NAME = templateName;
+        this.REDIRECT_INDEX = "redirect:" + "/" + this.TEMPLATE_NAME + INDEX_ROUTE;
+        this.REDIRECT_CREATE = "redirect:" + "/" + this.TEMPLATE_NAME + CREATE_ROUTE;
+    }
+
+    @Autowired
+    private JpaRepository<T, Long> repository;
+    
+    
+
+    @GetMapping(value = {"", "/", INDEX_ROUTE})
+    public String index(final Model model, final HttpServletResponse response) {
+        model.addAttribute("items", repository.findAll());
+        response.addCookie(new Cookie("moncookie", "coucouDeMonCookie"));
+
+        return "/" + this.TEMPLATE_NAME + INDEX_ROUTE;
+    }
+    
+    
+
+    @GetMapping(value = {CREATE_ROUTE})
+    public String createGet(final Model model, final RedirectAttributes attributes, final HttpServletRequest request) {
+
+        if (attributes.getFlashAttributes().containsKey(FLASH_ERRORS)) {
+            model.addAttribute(FLASH_ERRORS, attributes.getFlashAttributes().get(FLASH_ERRORS));
+        }
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (cookie.getName().equals("moncookie")) {
+                    model.addAttribute("moncookie", cookie.getValue());
+                }
+            }
+        }
+
+        this.preCreateGet(model);
+        return "/" + this.TEMPLATE_NAME + CREATE_ROUTE;
+    }
+
+    protected void preCreateGet(final Model model) {
+
+    }
+
+
+    @PostMapping(value = {CREATE_ROUTE})
+    public String createPost(final DTO dto, final RedirectAttributes attributes, HttpServletRequest request) {
+        String result = this.REDIRECT_INDEX;
+        try {
+        	System.out.println("try");
+            T item = this.preCreatePost(dto, request);
+            this.repository.save(item);
+        } catch (Exception e) {
+        	System.out.println(e);
+            attributes.addFlashAttribute(FLASH_ERRORS, e.getMessage());
+            result = this.REDIRECT_CREATE;
+        }
+        return result;
+    }
+    
+    
+    
+
+    @SuppressWarnings("unchecked")
+	protected T preCreatePost(DTO dto, HttpServletRequest re) throws Exception {
+        return (T)dto;
+    }
+    
+    
+    
+
+    @GetMapping(value = {DETAILS_ROUTE})
+    public String details(@PathVariable final Long id, final Model model) {
+        String result = this.REDIRECT_INDEX;
+        T item = this.repository.findById(id).orElse(null);
+        if (item != null) {
+            model.addAttribute("item", item);
+            result = "/" + this.TEMPLATE_NAME + DETAILS_TEMPLATE;
+        }
+
+        return result;
+    }
+    
+    
+}
